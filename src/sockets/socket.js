@@ -1,9 +1,11 @@
 const jwt = require("jsonwebtoken");
+const Message = require("../models/Message");
 
 const onlineUsers = new Map();
 
 const socketHandler = (io) => {
   io.use((socket, next) => {
+    //authentication layer
     const token = socket.handshake.auth.token;
 
     if (!token) {
@@ -26,14 +28,37 @@ const socketHandler = (io) => {
     //stores online user mapping
     onlineUsers.set(socket.userId, socket.id);
 
-    //listens for a private message event
-    socket.on("private_message", ({ to, message }) => {
-      const receiverSocketId = onlineUsers.get(to); //finds receivers socked id
+    //listens for a private message event (event handler)
+    socket.on("private_message", async ({ to, message }) => {
+      const newMessage = await Message.create({
+        sender: socket.userId,
+        receiver: to,
+        content: message,
+      });
+
+      const receiverSocketId = onlineUsers.get(to);
+
       if (receiverSocketId) {
         io.to(receiverSocketId).emit("private_message", {
           from: socket.userId,
-          message,
-          timestamp: new Date(),
+          message: newMessage.content,
+          timestamp: newMessage.createdAt,
+        });
+      }
+    });
+
+    socket.on("message_seen", async (req, res) => {
+      const message = await Message.findById(messageId);
+      if (!message) return;
+
+      message.seen = true;
+      await message.save();
+
+      const senderSocketId = onlineUsers.get(message.sender.toString());
+
+      if (senderSocketId) {
+        io.to(senderSocketId).emit("message_Seen", {
+          messageId,
         });
       }
     });
