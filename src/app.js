@@ -9,15 +9,16 @@ const app = express();
 //middleware
 app.use(express.json());
 
+//routes
+app.use("/api/auth", authRoutes);
+app.use("/api/users", userRoutes);
+
+//error middleware
 app.use((err, req, res, next) => {
   res.status(500).json({
     message: err.message || "Internal Server Error",
   });
 });
-
-//routes
-app.use("/api/auth", authRoutes);
-app.use("/api/users", userRoutes);
 
 //connect database
 connectDB();
