@@ -1,36 +1,49 @@
-const users = new Map();
-const Message = require("../models/Message");
+const jwt = require("jsonwebtoken");
+
+const onlineUsers = new Map();
 
 const socketHandler = (io) => {
+  io.use((socket, next) => {
+    const token = socket.handshake.auth.token;
+
+    if (!token) {
+      return next(new Error("Authentication error"));
+    }
+
+    try {
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      socket.userId = decoded.id; // attaches user id to socket object
+      next(); // allows socket connection to continue
+    } catch (err) {
+      next(new Error("Invalid token"));
+    }
+  });
+
+  //Connects when a client successfully connects i.e. user is authenticated
   io.on("connection", (socket) => {
-    console.log("User connected: ", socket.id);
+    console.log("User connected: ", socket.userId);
 
-    socket.on("register_user", (userId) => {
-      users.set(userId, socket.id);
-    });
+    //stores online user mapping
+    onlineUsers.set(socket.userId, socket.id);
 
-    socket.on("private_message", async ({ senderId, receiverId, message }) => {
-      const savedMessage = await Message.create({
-        sender: senderId,
-        receiver: receiverId,
-        content: message,
-        timestamp: new Date(),
-      });
-
-      const receiverSocket = users.get(receiverId);
-
-      if (receiverSocket) {
-        io.to(receiverSocket).emit("receive_message ", savedMessage);
+    //listens for a private message event
+    socket.on("private_message", ({ to, message }) => {
+      const receiverSocketId = onlineUsers.get(to); //finds receivers socked id
+      if (receiverSocketId) {
+        io.to(receiverSocketId).emit("private_message", {
+          from: socket.userId,
+          message,
+          timestamp: new Date(),
+        });
       }
     });
 
+    //triggered when user disconnects
     socket.on("disconnect", () => {
-      users.forEach((value, key) => {
-        if (value === socket.id) {
-          users.delete(key);
-        }
-      });
+      onlineUsers.delete(socket.userId); //removes user from online map
+      console.log("User disconnected: ", socket.userId);
     });
   });
 };
+
 module.exports = socketHandler;
