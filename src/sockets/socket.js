@@ -4,25 +4,34 @@ const Message = require("../models/Message");
 const onlineUsers = new Map();
 
 const socketHandler = (io) => {
+  console.log("✅ socketHandler initialized");
+
   io.use((socket, next) => {
-    //authentication layer
-    const token = socket.handshake.auth.token;
+    console.log("🧪 socket.handshake.auth =", socket.handshake.auth);
+
+    const token = socket.handshake.auth?.token;
+    console.log("🧪 extracted token =", token);
 
     if (!token) {
+      console.log("❌ NO TOKEN RECEIVED");
       return next(new Error("Authentication error"));
     }
 
     try {
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      socket.userId = decoded.id; // attaches user id to socket object
-      next(); // allows socket connection to continue
+      console.log("🔍 decoded JWT =", decoded);
+
+      socket.userId = decoded.userId || decoded.id;
+      next();
     } catch (err) {
+      console.log("❌ JWT VERIFY FAILED:", err.message);
       next(new Error("Invalid token"));
     }
   });
 
   //Connects when a client successfully connects i.e. user is authenticated
   io.on("connection", (socket) => {
+    console.log("socket connected:", socket.userId);
     console.log("User connected: ", socket.userId);
 
     //stores online user mapping
@@ -47,7 +56,7 @@ const socketHandler = (io) => {
       }
     });
 
-    socket.on("message_seen", async (req, res) => {
+    socket.on("message_seen", async ({ messageId }) => {
       const message = await Message.findById(messageId);
       if (!message) return;
 

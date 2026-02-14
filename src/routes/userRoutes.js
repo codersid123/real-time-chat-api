@@ -1,7 +1,8 @@
 const express = require("express");
 const router = express.Router();
-const { getMe } = require("../controllers/userController");
+const { getMe, updateMe } = require("../controllers/userController");
 const auth = require("../middleware/auth");
 //Protected Route
 router.get("/me", auth, getMe);
+router.put("/me", auth, updateMe);
 module.exports = router;
